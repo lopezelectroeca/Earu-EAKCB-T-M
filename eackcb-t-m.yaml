@@ -1,0 +1,247 @@
+substitutions:
+  devicename: "eackcb-t-m"
+  friendly_name: "Earu_1"
+
+esphome:
+  name: $devicename
+  friendly_name: $friendly_name
+
+bk72xx:
+  board: cbu
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: ""
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  networks:
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 192.168.1.xx
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 192.168.1.xx
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+  ap:
+    ssid: "${devicename} Fallback Hotspot"
+    password: ""
+
+captive_portal:
+
+web_server:
+  port: 80
+
+mdns:
+  disabled: false
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+button:
+  - platform: restart
+    name: Restart
+
+debug:
+  update_interval: 30s
+
+interval:
+  - interval: 1s
+    then:
+      if:
+        condition:
+          - binary_sensor.is_on: conectado
+        then:
+          - light.toggle: led1light
+        else:
+          - light.turn_on: led1light
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: $devicename Reset Reason
+  - platform: libretiny
+    version:
+      name: $devicename LibreTiny Version
+  - platform: version
+    name: "${devicename} - Version"
+    icon: mdi:cube-outline
+  - platform: wifi_info
+    ip_address:
+      name: "${devicename} IP"
+    ssid:
+      name: "${devicename} Conectada a"
+  - platform: template
+    name: "${devicename} - Uptime human"
+    entity_category: diagnostic
+    lambda: |-
+      int seconds = (id(uptime_sensor).state);
+      int days = seconds / (24 * 3600);
+      seconds = seconds % (24 * 3600);
+      int hours = seconds / 3600;
+      seconds = seconds % 3600;
+      int minutes = seconds /  60;
+      seconds = seconds % 60;
+      if ( days > 3650 ) {
+        return { "Starting up" };
+      } else if ( days ) {
+        return { (String(days) +"d " + String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else if ( hours ) {
+        return { (String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else if ( minutes ) {
+        return { (String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else {
+        return { (String(seconds) +"s").c_str() };
+      }
+    icon: mdi:clock-start
+
+sensor:
+  - platform: wifi_signal
+    name: "${devicename} - Wifi Signal"
+    id: wifi_signal_db
+    update_interval: 60s
+    icon: mdi:wifi
+  - platform: copy
+    source_id: wifi_signal_db
+    name: "${devicename} WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "%"
+    entity_category: "diagnostic"
+    device_class: ""
+  - platform: uptime
+    name: "${devicename} - Uptime"
+    id: uptime_sensor
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+  - platform: total_daily_energy
+    name: "${devicename} - Todays Usage"
+    power_id: "power_wattage"
+    filters:
+      # Multiplication factor from W to kW is 0.001
+      - multiply: 0.001
+    unit_of_measurement: kWh
+    icon: mdi:calendar-clock
+
+  - platform: adc
+    pin: ADC3
+    name: "Temperatura_temp"
+    update_interval: 60s
+
+  - platform: bl0942
+  
+    current:
+      name: "${devicename} - Ampere"
+      device_class: current
+      unit_of_measurement: A
+      accuracy_decimals: 2
+      icon: mdi:current-ac
+
+    voltage:
+      name: "${devicename} - Volt"
+      device_class: voltage
+      unit_of_measurement: V
+      accuracy_decimals: 1
+      icon: mdi:flash-outline
+
+    power:
+      name: "${devicename} - Watt"
+      device_class: power
+      unit_of_measurement: W
+      id: "power_wattage"
+      icon: mdi:gauge
+      filters:
+        multiply: -1
+
+    energy:
+      name: '${devicename} - Energy'
+      device_class: energy
+      unit_of_measurement: kWh
+      id: "energy"
+
+    frequency:
+      name: "${devicename} - Frequency"
+      accuracy_decimals: 2
+      device_class: frequency
+      unit_of_measurement: Hz
+      id: frecuencia
+
+
+uart:
+  rx_pin: RX1
+  tx_pin: TX1
+  baud_rate: 4800
+  stop_bits: 1
+
+
+output:
+  - platform: gpio
+    inverted: true
+    id: led1
+    pin: P15
+
+  - platform: libretiny_pwm
+    inverted: true
+    id: led2
+    pin: P9
+
+light:
+  - platform: binary
+    id: led1light
+    output: led1  
+  
+  - platform: monochromatic
+    id: led2light
+    output: led2
+
+switch:
+
+  - platform: hbridge
+    id: switch_1
+    name: Relay 1
+    on_pin: P24
+    off_pin: P26
+    pulse_length: 60ms
+    wait_time: 30ms
+    on_turn_on:
+      - light.turn_on: led2light
+    on_turn_off:
+      - light.turn_off: led2light
+
+
+
+  - platform: restart
+    name: "${devicename} - Restart"
+
+binary_sensor:
+
+  - platform: status
+    name: ${devicename} Status
+    id: conectado
+    device_class: connectivity
+
+  - platform: gpio
+    pin:
+      number: P17
+      mode: INPUT_PULLUP
+      inverted: True
+    id: pulsador
+    on_press:
+      - switch.toggle: switch_1
