@@ -5,6 +5,36 @@ substitutions:
 esphome:
   name: $devicename
   friendly_name: $friendly_name
+  on_boot: 
+    - priority: -100
+      then: 
+        - number.set: 
+            id: overvoltage
+            value: !lambda |-
+                   return id(sobrevolt);
+        - number.set: 
+            id: undervoltage
+            value: !lambda |-
+                   return id(bajovolt);
+        - number.set: 
+            id: overcurrent
+            value: !lambda |-
+                   return id(sobreintensidad);
+        - number.set: 
+            id: consumolimite
+            value: !lambda |-
+                   return id(intensidadlimite);
+        - if: 
+            condition:
+              - switch.is_on: switch_1
+            then: 
+              - light.turn_on: led2light
+            else:
+              - light.turn_off: led2light
+
+          
+          
+      
 
 bk72xx:
   board: cbu
@@ -15,7 +45,7 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: ""
+    key: "y/FlHwjRM/xZ7SHGo80A0rguhgA7TN9m7qoTOzIcZu4="
 
 ota:
   - platform: esphome
@@ -33,9 +63,9 @@ wifi:
     password: ""
   manual_ip:
     # Set this to the IP of the ESP
-    static_ip: 192.168.1.xx
+    static_ip: 192.168.1.90
     # Set this to the IP address of the router. Often ends with .1
-    gateway: 192.168.1.xx
+    gateway: 192.168.1.1
     # The subnet of the network. 255.255.255.0 works for most home networks.
     subnet: 255.255.255.0
   ap:
@@ -143,19 +173,21 @@ sensor:
   - platform: adc
     pin: ADC3
     name: "Temperatura_temp"
-    update_interval: 60s
+    update_interval: 10s
 
   - platform: bl0942
-  
+    update_interval: 10s
     current:
       name: "${devicename} - Ampere"
+      id: current
       device_class: current
       unit_of_measurement: A
-      accuracy_decimals: 2
+      accuracy_decimals: 3
       icon: mdi:current-ac
 
     voltage:
       name: "${devicename} - Volt"
+      id: voltage
       device_class: voltage
       unit_of_measurement: V
       accuracy_decimals: 1
@@ -225,10 +257,26 @@ switch:
     on_turn_off:
       - light.turn_off: led2light
 
+  - platform: template
+    name: ${devicename} over voltage enabled
+    id: overvoltageenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: ${devicename} under voltage enabled
+    id: undervoltageenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: ${devicename} over current enabled
+    id: overcurrentenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+  
 
 
-  - platform: restart
-    name: "${devicename} - Restart"
 
 binary_sensor:
 
@@ -245,3 +293,135 @@ binary_sensor:
     id: pulsador
     on_press:
       - switch.toggle: switch_1
+
+  - platform: template
+    name: ${devicename} switch over voltage
+    icon: mdi:flash-triangle
+    lambda: |-
+      if (id(voltage).state > id(sobrevolt)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: overvoltageenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} switch under voltage
+    icon: mdi:flash-triangle-outline
+    lambda: |-
+      if (id(voltage).state < id(bajovolt)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: undervoltageenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} switch over current
+    icon: mdi:current-ac
+    lambda: |-
+      if (id(current).state > id(sobreintensidad)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: overcurrentenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} consumiendo
+    device_class: power
+    icon: mdi:current-ac
+    lambda: |-
+      if (id(current).state > id(intensidadlimite)) {
+        return true;
+      } else {
+        return false;
+      }
+
+globals:
+
+  - id: sobrevolt
+    type: int
+    restore_value: True
+    initial_value: "265"
+
+  - id: bajovolt
+    type: int
+    restore_value: True
+    initial_value: "75"
+
+  - id: sobreintensidad
+    type: int
+    restore_value: True
+    initial_value: "63"
+
+  - id: intensidadlimite
+    type: int
+    restore_value: True
+    initial_value: "1"
+
+number:
+
+  - platform: template
+    max_value: 63
+    min_value: 1
+    step: 1
+    optimistic: True
+    name: ${devicename} over current
+    id: overcurrent
+    on_value: 
+      then:
+        - lambda: |-
+            id(sobreintensidad) = id(overcurrent).state;
+
+  - platform: template
+    max_value: 63
+    min_value: 1
+    step: 1
+    optimistic: True
+    name: ${devicename} consumo limite
+    id: consumolimite
+    on_value: 
+      then:
+        - lambda: |-
+            id(intensidadlimite) = id(consumolimite).state;
+
+  - platform: template
+    max_value: 265
+    min_value: 230
+    step: 1
+    optimistic: True
+    name: ${devicename} over voltage
+    id: overvoltage
+    on_value: 
+      then:
+        - lambda: |-
+            id(sobrevolt) = id(overvoltage).state;
+
+  - platform: template
+    max_value: 230
+    min_value: 75
+    step: 1
+    optimistic: True
+    name: ${devicename} under voltage
+    id: undervoltage
+    on_value: 
+      then:
+        - lambda: |-
+            id(bajovolt) = id(undervoltage).state;
+            
