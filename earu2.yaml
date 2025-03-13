@@ -1,0 +1,536 @@
+substitutions:
+  devicename: "eackcb-t-m"
+  friendly_name: "Earu_1"
+
+esphome:
+  name: $devicename
+  friendly_name: $friendly_name
+  on_boot: 
+    - priority: -100
+      then: 
+        - number.set: 
+            id: overvoltage
+            value: !lambda |-
+                   return id(sobrevolt);
+        - number.set: 
+            id: undervoltage
+            value: !lambda |-
+                   return id(bajovolt);
+        - number.set: 
+            id: overcurrent
+            value: !lambda |-
+                   return id(sobreintensidad);
+        - number.set: 
+            id: consumolimite
+            value: !lambda |-
+                   return id(intensidadlimite);
+        - number.set: 
+            id: overpower
+            value: !lambda |-
+                   return id(potencialimite);
+        - number.set: 
+            id: overpower
+            value: !lambda |-
+                   return id(sobrepotencia);
+        - if: 
+            condition:
+              - switch.is_on: switch_1
+            then: 
+              - light.turn_on: led2light
+            else:
+              - light.turn_off: led2light
+
+          
+          
+      
+
+bk72xx:
+  board: cbu
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "y/FlHwjRM/xZ7SHGo80A0rguhgA7TN9m7qoTOzIcZu4="
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  networks:
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  - ssid: ""
+    password: ""
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 192.168.1.xx
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 192.168.1.xx
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+  ap:
+    ssid: "${devicename} Fallback Hotspot"
+    password: ""
+
+captive_portal:
+
+web_server:
+  port: 80
+
+mdns:
+  disabled: false
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+button:
+  - platform: restart
+    name: Restart
+
+debug:
+  update_interval: 30s
+
+interval:
+  - interval: 1s
+    then:
+      if:
+        condition:
+          - binary_sensor.is_on: conectado
+        then:
+          - light.toggle: led1light
+        else:
+          - light.turn_on: led1light
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: $devicename Reset Reason
+  - platform: libretiny
+    version:
+      name: $devicename LibreTiny Version
+  - platform: version
+    name: "${devicename} - Version"
+    icon: mdi:cube-outline
+  - platform: wifi_info
+    ip_address:
+      name: "${devicename} IP"
+    ssid:
+      name: "${devicename} Conectada a"
+  - platform: template
+    name: "${devicename} - Uptime human"
+    entity_category: diagnostic
+    lambda: |-
+      int seconds = (id(uptime_sensor).state);
+      int days = seconds / (24 * 3600);
+      seconds = seconds % (24 * 3600);
+      int hours = seconds / 3600;
+      seconds = seconds % 3600;
+      int minutes = seconds /  60;
+      seconds = seconds % 60;
+      if ( days > 3650 ) {
+        return { "Starting up" };
+      } else if ( days ) {
+        return { (String(days) +"d " + String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else if ( hours ) {
+        return { (String(hours) +"h " + String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else if ( minutes ) {
+        return { (String(minutes) +"m "+ String(seconds) +"s").c_str() };
+      } else {
+        return { (String(seconds) +"s").c_str() };
+      }
+    icon: mdi:clock-start
+
+sensor:
+  - platform: wifi_signal
+    name: "${devicename} - Wifi Signal"
+    id: wifi_signal_db
+    update_interval: 60s
+    icon: mdi:wifi
+  - platform: copy
+    source_id: wifi_signal_db
+    name: "${devicename} WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "%"
+    entity_category: "diagnostic"
+    device_class: ""
+  - platform: uptime
+    name: "${devicename} - Uptime"
+    id: uptime_sensor
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+  - platform: total_daily_energy
+    name: "${devicename} - Todays Usage"
+    power_id: power_wattage
+    state_class: total_increasing
+    device_class: energy
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: kWh
+    icon: mdi:calendar-clock
+
+  - platform: ntc
+    sensor: resistance_sensor
+    calibration:
+      b_constant: 3950
+      reference_temperature: 25°C
+      reference_resistance: 10kOhm
+    name: ${devicename} NTC Temperature
+
+  # Example source sensors:
+  - platform: resistance
+    id: resistance_sensor
+    sensor: source_sensor
+    configuration: DOWNSTREAM
+    resistor: 5.6kOhm
+
+  - platform: adc
+    pin: ADC3
+    id: source_sensor
+    name: "Temperatura_temp"
+    update_interval: 10s
+
+  - platform: bl0942
+    update_interval: 2s
+    current:
+      name: "${devicename} - Ampere"
+      id: current
+      device_class: current
+      unit_of_measurement: A
+      accuracy_decimals: 3
+      icon: mdi:current-ac
+
+    voltage:
+      name: "${devicename} - Volt"
+      id: voltage
+      device_class: voltage
+      unit_of_measurement: V
+      accuracy_decimals: 1
+      icon: mdi:flash-outline
+
+    power:
+      name: "${devicename} - Watt"
+      device_class: power
+      unit_of_measurement: W
+      id: power_wattage
+      icon: mdi:gauge
+      filters: 
+        - lambda: |-
+           if (x < 0) {
+            return 0;
+           } else {
+            return x;
+           }
+            
+
+    energy:
+      name: '${devicename} - Energy'
+      device_class: energy
+      unit_of_measurement: kWh
+      id: energy
+
+    frequency:
+      name: "${devicename} - Frequency"
+      accuracy_decimals: 2
+      device_class: frequency
+      unit_of_measurement: Hz
+      id: frecuencia
+
+    current_reference: 130000
+
+
+uart:
+  rx_pin: RX1
+  tx_pin: TX1
+  baud_rate: 4800
+  stop_bits: 1
+
+
+output:
+  - platform: gpio
+    inverted: true
+    id: led1
+    pin: P15
+
+  - platform: libretiny_pwm
+    inverted: true
+    id: led2
+    pin: P9
+
+light:
+  - platform: binary
+    id: led1light
+    output: led1  
+  
+  - platform: monochromatic
+    id: led2light
+    output: led2
+
+switch:
+
+  - platform: hbridge
+    id: switch_1
+    name: Relay 1
+    on_pin: P24
+    off_pin: P26
+    pulse_length: 60ms
+    wait_time: 30ms
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - light.turn_on: led2light
+    on_turn_off:
+      - light.turn_off: led2light
+
+  - platform: template
+    name: ${devicename} over voltage enabled
+    id: overvoltageenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: ${devicename} under voltage enabled
+    id: undervoltageenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: ${devicename} over current enabled
+    id: overcurrentenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: ${devicename} over power enabled
+    id: overpowerenabled
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+
+
+
+binary_sensor:
+
+  - platform: status
+    name: ${devicename} Status
+    id: conectado
+    device_class: connectivity
+
+  - platform: gpio
+    pin:
+      number: P17
+      mode: INPUT_PULLUP
+      inverted: True
+    id: pulsador
+    on_press:
+      - switch.toggle: switch_1
+
+  - platform: template
+    name: ${devicename} switch over voltage
+    icon: mdi:flash-triangle
+    lambda: |-
+      if (id(voltage).state > id(sobrevolt)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: overvoltageenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} switch under voltage
+    icon: mdi:flash-triangle-outline
+    lambda: |-
+      if (id(voltage).state < id(bajovolt)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: undervoltageenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} switch over current
+    icon: mdi:current-ac
+    lambda: |-
+      if (id(current).state > id(sobreintensidad)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: overcurrentenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} switch over power
+    icon: mdi:current-ac
+    lambda: |-
+      if (id(power_wattage).state > id(sobrepotencia)) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press: 
+      - if: 
+          condition: 
+            - switch.is_on: overpowerenabled
+          then: 
+            - switch.turn_off: switch_1
+
+  - platform: template
+    name: ${devicename} consumiendo
+    device_class: power
+    icon: mdi:current-ac
+    lambda: |-
+      if ((id(current).state > id(intensidadlimite)) or (id(power_wattage).state > id(potencialimite))) {
+        return true;
+      } else {
+        return false;
+      }
+
+globals:
+
+  - id: sobrevolt
+    type: int
+    restore_value: True
+    initial_value: "265"
+
+  - id: bajovolt
+    type: int
+    restore_value: True
+    initial_value: "75"
+
+  - id: sobreintensidad
+    type: int
+    restore_value: True
+    initial_value: "63"
+
+  - id: intensidadlimite
+    type: int
+    restore_value: True
+    initial_value: "1"
+
+  - id: potencialimite
+    type: int
+    restore_value: True
+    initial_value: "1"
+
+  - id: sobrepotencia
+    type: int
+    restore_value: True
+    initial_value: "10000"
+
+number:
+
+  - platform: template
+    unit_of_measurement: A
+    device_class: current
+    max_value: 63
+    min_value: 1
+    step: 1
+    optimistic: True
+    name: ${devicename} over current
+    id: overcurrent
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(sobreintensidad) = id(overcurrent).state;
+
+  - platform: template
+    unit_of_measurement: W
+    device_class: power
+    max_value: 1000
+    min_value: 1
+    step: 1
+    optimistic: True
+    name: ${devicename} potencia limite
+    id: consumopotencia
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(potencialimite) = id(consumopotencia).state;
+
+  - platform: template
+    unit_of_measurement: W
+    device_class: power
+    max_value: 15000
+    min_value: 1
+    step: 1
+    optimistic: True
+    name: ${devicename} over power
+    id: overpower
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(sobrepotencia) = id(overpower).state;
+
+
+  - platform: template
+    unit_of_measurement: A
+    device_class: current
+    max_value: 63
+    min_value: 0.1
+    step: 0.1
+    optimistic: True
+    name: ${devicename} consumo limite
+    id: consumolimite
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(intensidadlimite) = id(consumolimite).state;
+
+  - platform: template
+    unit_of_measurement: V
+    device_class: voltage  
+    max_value: 265
+    min_value: 230
+    step: 1
+    optimistic: True
+    name: ${devicename} over voltage
+    id: overvoltage
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(sobrevolt) = id(overvoltage).state;
+
+  - platform: template
+    unit_of_measurement: V
+    device_class: voltage
+    max_value: 230
+    min_value: 75
+    step: 1
+    optimistic: True
+    name: ${devicename} under voltage
+    id: undervoltage
+    mode: BOX
+    on_value: 
+      then:
+        - lambda: |-
+            id(bajovolt) = id(undervoltage).state;
+            
